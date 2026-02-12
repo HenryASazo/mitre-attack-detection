@@ -1,6 +1,6 @@
-# Lab 1: MITRE ATT&CK Detection Engineering (Through Exercise 1)
+# Lab 1: MITRE ATT&CK Detection
 
-Cybersecurity lab from the **Mandiant Cyber Defense Validation Engineer Prep** guide. This repo documents **Lab 1** and **Exercise 1: Credential Dumping Detection (T1003)** — environment setup, Wazuh deployment, Atomic Red Team, and a custom detection rule for LSASS access.
+A hands-on lab for building and validating detection of MITRE ATT&CK techniques in an EDR-style setup. You get endpoint visibility (Wazuh agent + Sysmon on Windows), a central manager for detection rules, and Atomic Red Team to simulate attacks and confirm that detections fire. The exercise focuses on writing a custom rule to detect credential dumping from LSASS (T1003.001).
 
 **Screenshots throughout this README are from my own lab environment** — captured on my machine as I completed each step (Wazuh manager on Ubuntu, agent on Windows 10 in VirtualBox). They document the setup, configuration, and detection results from this run.
 
@@ -8,8 +8,8 @@ Cybersecurity lab from the **Mandiant Cyber Defense Validation Engineer Prep** g
 
 ## Lab Overview
 
-- **Goal:** Build detection for common ATT&CK techniques and validate with attack simulation.
-- **Skills:** MITRE ATT&CK mapping, detection rule writing, EDR configuration and testing.
+- **Goal:** Build detection for common ATT&CK techniques and validate it with attack simulation — the same workflow used when tuning or testing EDR (endpoint detection and response).
+- **Skills:** MITRE ATT&CK mapping, detection rule writing, EDR-style configuration and testing (endpoint agent, Sysmon, custom rules, and validation with Atomic Red Team).
 - **Exercise 1 focus:** Detect credential dumping from LSASS memory (MITRE ATT&CK **T1003.001**).
 
 ---
@@ -67,6 +67,8 @@ curl -sO https://packages.wazuh.com/4.14/wazuh-install.sh && sudo bash ./wazuh-i
 
 ### 2. Wazuh Agent (Windows 10 VM)
 
+The Wazuh agent on the Windows endpoint collects logs and events (including Sysmon data) and sends them to the manager — providing the endpoint visibility needed for EDR-style detection.
+
 - Configured the agent to point to the manager. During setup, used manager address **10.0.2.15** (NAT IP seen on Ubuntu before Host-Only was in use) and agent name **Windows-client**.
 
 ![Agent configuration – manager address and agent name](screenshots/Screenshot%202026-02-08%20174134.png)
@@ -91,7 +93,26 @@ After both adapters were in place and the manager was reachable on the Host-Only
 
 ---
 
-### 3. Atomic Red Team (Windows 10 VM)
+### 3. Sysmon (Windows 10 VM)
+
+Before installing and invoking Atomic Red Team, **Sysmon** had to be installed on the Windows sandbox so that the tests (e.g. credential dumping) would generate the right events for Wazuh to collect. The lab guide describes using a disposable Windows 10 VM for this.
+
+- **Sysmon** is downloaded from the [Microsoft Sysinternals](https://docs.microsoft.com/en-us/sysinternals/downloads/sysmon) page and is installed with a configuration file that maps Sysmon rules to MITRE ATT&CK techniques.
+- **Installation command** (run from the folder where `sysmon.exe` and your config file are located, in an elevated PowerShell):
+
+```powershell
+sysmon.exe -accepteula -i sysmonconfig.xml
+```
+
+The `sysmonconfig.xml` file defines which events Sysmon logs (process creation, network, file access, etc.); using a config that aligns with MITRE ATT&CK helps ensure Atomic Red Team tests produce detectable activity.
+
+![Wazuh lab environment – MITRE ATT&CK techniques and setting up the lab](screenshots/Screenshot_2026-02-11_wazuh-lab-environment.png)
+
+![Lab guide – Setting up the lab environment and Sysmon configuration](screenshots/Screenshot_2026-02-11_sysmon-install.png)
+
+---
+
+### 4. Atomic Red Team (Windows 10 VM)
 
 - Installed Atomic Red Team so I could run ATT&CK-mapped tests (e.g. credential dumping).
 
@@ -119,7 +140,7 @@ This simulates access to LSASS so we can validate detection.
 
 ---
 
-### 4. Exercise 1: Credential Dumping Detection (T1003.001)
+### 5. Exercise 1: Credential Dumping Detection (T1003.001)
 
 - **Objective:** Detect when something accesses LSASS (credential dumping).
 - **Steps taken:**
@@ -134,11 +155,13 @@ sudo nano /var/ossec/etc/rules/local_rules.xml
 
 ![Editing local_rules.xml on the manager](screenshots/Screenshot%202026-02-10%20215425.png)
 
+#### Detection rules I added for T1003.001
+
 - Added a rule that triggers on Windows events where the target image is `lsass.exe`, with level 12 and MITRE ID **T1003.001**:
 
-![Custom rule for credential dumping (LSASS)](screenshots/Screenshot%202026-02-10%20215515.png)
+![Custom rule for credential dumping (LSASS) – T1003.001](screenshots/Screenshot%202026-02-10%20215515.png)
 
-![Full local_rules.xml with multiple custom rules](screenshots/Screenshot%202026-02-10%20220445.png)
+![Full local_rules.xml including T1003.001 and other custom rules](screenshots/Screenshot%202026-02-10%20220445.png)
 
 - Reloaded and restarted the manager so the new rule loaded:
 
@@ -212,6 +235,7 @@ Filtering on **LSASS** (`data.win.eventdata.targetImage` exists) in the Events v
 | **Lab** | Lab 1 – MITRE ATT&CK Detection Engineering, through Exercise 1 |
 | **VMs** | Windows 10 (Wazuh agent), Ubuntu (Wazuh manager), both in VirtualBox with Host-Only + NAT |
 | **Wazuh** | Manager 4.14.2 on Ubuntu; agent 4.14.2 on Windows 10, registered as Windows-Client1 |
+| **Sysmon** | Installed on Windows 10 VM with `sysmonconfig.xml` before Atomic Red Team (required for ART tests to generate detectable events) |
 | **Attack simulation** | Atomic Red Team, `Invoke-AtomicTest T1003.001` (credential dumping – LSASS) |
 | **Custom rules** | `local_rules.xml`: Regsvr32 proxy execution, Security Software Discovery (115004), UAC Bypass (115005), Credential Dumping/LSASS (100100) |
 | **Dashboard (24h)** | 117 MITRE ATT&CK events; other techniques logged: T1055, T1073/T1574, T1105, T1059.x, T1070.004, T1087 (rule IDs 92900, 92910, 115002, 92213, 92201, 92027, 92052, 92021, 92031) |
@@ -222,6 +246,7 @@ Filtering on **LSASS** (`data.win.eventdata.targetImage` exists) in the Events v
 ## References
 
 - [Cybersecurity Lab Guide](Cybersecurity_Lab_Guide.pdf) (local)
+- [Microsoft Sysinternals – Sysmon](https://docs.microsoft.com/en-us/sysinternals/downloads/sysmon)
 - [MITRE ATT&CK T1003.001 – OS Credential Dumping: LSASS Memory](https://attack.mitre.org/techniques/T1003/001/)
 - [Wazuh Documentation](https://documentation.wazuh.com/)
 - [Atomic Red Team](https://github.com/redcanaryco/atomic-red-team)
