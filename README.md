@@ -43,23 +43,23 @@ curl -sO https://packages.wazuh.com/4.14/wazuh-install.sh && sudo bash ./wazuh-i
 - The script installed the Wazuh indexer, dashboard, and manager, generated certificates and the `wazuh-install-files.tar` bundle (used for agent enrollment).
 - Post-install summary showed dashboard URL and generated admin credentials.
 
-![Wazuh manager installation in progress](Screenshot%202026-02-08%20170951.png)
+![Wazuh manager installation in progress](screenshots/Screenshot 2026-02-08 170951.png)
 
-![Install summary – dashboard URL and credentials](Screenshot%202026-02-08%20171009.png)
+![Install summary – dashboard URL and credentials](screenshots/Screenshot 2026-02-08 171009.png)
 
 - Verified network: `ip a s` showed the NAT interface (e.g. `10.0.2.15`) and later Host-Only gave the IP used for the dashboard (**192.168.56.101**).
 
-![Network interfaces on Ubuntu (ip a s)](Screenshot%202026-02-08%20171523.png)
+![Network interfaces on Ubuntu (ip a s)](screenshots/Screenshot 2026-02-08 171523.png)
 
 - Opened the Wazuh dashboard in the browser. First access to the manager IP triggered a certificate warning (self-signed); accepted to continue.
 
-![Browser certificate warning when accessing Wazuh](Screenshot%202026-02-08%20171816.png)
+![Browser certificate warning when accessing Wazuh](screenshots/Screenshot 2026-02-08 171816.png)
 
 - Logged in and confirmed the dashboard loaded with no agents registered yet.
 
-![Wazuh login page](Screenshot%202026-02-08%20172538.png)
+![Wazuh login page](screenshots/Screenshot 2026-02-08 172538.png)
 
-![Wazuh overview – no agents registered](Screenshot%202026-02-08%20172747.png)
+![Wazuh overview – no agents registered](screenshots/Screenshot 2026-02-08 172747.png)
 
 ---
 
@@ -67,7 +67,7 @@ curl -sO https://packages.wazuh.com/4.14/wazuh-install.sh && sudo bash ./wazuh-i
 
 - Configured the agent to point to the manager. During setup, used manager address **10.0.2.15** (NAT IP seen on Ubuntu before Host-Only was in use) and agent name **Windows-client**.
 
-![Agent configuration – manager address and agent name](Screenshot%202026-02-08%20174134.png)
+![Agent configuration – manager address and agent name](screenshots/Screenshot 2026-02-08 174134.png)
 
 - Installed the agent via PowerShell (Administrator):
 
@@ -75,17 +75,17 @@ curl -sO https://packages.wazuh.com/4.14/wazuh-install.sh && sudo bash ./wazuh-i
 Invoke-WebRequest -Uri https://packages.wazuh.com/4.x/windows/wazuh-agent-4.14.2-1.msi -OutFile $env:tmp\wazuh-agent; msiexec.exe /i $env:tmp\wazuh-agent /q WAZUH_MANAGER='10.0.2.15' WAZUH_AGENT_NAME='Windows-client'
 ```
 
-![PowerShell – download and install Wazuh agent](Screenshot%202026-02-08%20174856.png)
+![PowerShell – download and install Wazuh agent](screenshots/Screenshot 2026-02-08 174856.png)
 
 - Used the Wazuh service name `WazuhSvc` for checks and restarts (e.g. `Get-Service -Name WazuhSvc`, `Restart-Service -Name WazuhSvc`).
 
-![Wazuh agent management commands (Windows)](Screenshot%202026-02-10%20181208.png)
+![Wazuh agent management commands (Windows)](screenshots/Screenshot 2026-02-10 181208.png)
 
 After both adapters were in place and the manager was reachable on the Host-Only network, the agent showed as **Active** in the dashboard with name **Windows-Client1** and IP **192.168.56.102**.
 
-![Wazuh overview – 1 active agent](Screenshot%202026-02-10%20181655.png)
+![Wazuh overview – 1 active agent](screenshots/Screenshot 2026-02-10 181655.png)
 
-![Endpoints – Windows-Client1 active](Screenshot%202026-02-10%20182701.png)
+![Endpoints – Windows-Client1 active](screenshots/Screenshot 2026-02-10 182701.png)
 
 ---
 
@@ -101,9 +101,9 @@ Install-AtomicRedTeam -getAtomics
 - Verified: `Test-Path C:\AtomicRedTeam\atomics` returned `True`.
 - When the folder already existed, re-running the installer reported “Atomic Redteam already exists” and suggested `-Force` for a clean reinstall.
 
-![Installing Atomic Red Team (install script)](Screenshot%202026-02-10%20181959.png)
+![Installing Atomic Red Team (install script)](screenshots/Screenshot 2026-02-10 181959.png)
 
-![Atomic Red Team already installed message](Screenshot%202026-02-10%20182044.png)
+![Atomic Red Team already installed message](screenshots/Screenshot 2026-02-10 182044.png)
 
 - For **Exercise 1**, ran the credential-dumping test (T1003.001 – LSASS memory):
 
@@ -111,7 +111,7 @@ Install-AtomicRedTeam -getAtomics
 Invoke-AtomicTest T1003.001
 ```
 
-![Running Invoke-AtomicTest T1003.001](Screenshot%202026-02-10%20182144.png)
+![Running Invoke-AtomicTest T1003.001](screenshots/Screenshot 2026-02-10 182144.png)
 
 This simulates access to LSASS so we can validate detection.
 
@@ -130,13 +130,13 @@ This simulates access to LSASS so we can validate detection.
 sudo nano /var/ossec/etc/rules/local_rules.xml
 ```
 
-![Editing local_rules.xml on the manager](Screenshot%202026-02-10%20215425.png)
+![Editing local_rules.xml on the manager](screenshots/Screenshot 2026-02-10 215425.png)
 
 - Added a rule that triggers on Windows events where the target image is `lsass.exe`, with level 12 and MITRE ID **T1003.001**:
 
-![Custom rule for credential dumping (LSASS)](Screenshot%202026-02-10%20215515.png)
+![Custom rule for credential dumping (LSASS)](screenshots/Screenshot 2026-02-10 215515.png)
 
-![Full local_rules.xml with multiple custom rules](Screenshot%202026-02-10%20220445.png)
+![Full local_rules.xml with multiple custom rules](screenshots/Screenshot 2026-02-10 220445.png)
 
 - Reloaded and restarted the manager so the new rule loaded:
 
@@ -145,7 +145,7 @@ systemctl daemon-reload
 systemctl restart wazuh-manager
 ```
 
-![Restarting Wazuh manager after rule change](Screenshot%202026-02-10%20215717.png)
+![Restarting Wazuh manager after rule change](screenshots/Screenshot 2026-02-10 215717.png)
 
 #### Custom detection rules in `local_rules.xml`
 
@@ -161,7 +161,7 @@ The Wazuh manager’s custom rules file (`/var/ossec/etc/rules/local_rules.xml`)
 - Rules **115004** and **115005** use `<if_group>windows</if_group>` and match on `win.eventdata.ruleName` with PCRE2 (e.g. `technique_id=T1518.001`, `technique_id=T1548.002`).
 - Rule **100100** uses `<if_sid>61612</if_sid>` (process-access events) and `<field name="win.eventdata.TargetImage">(?i)lsass.exe</field>` to raise a level-12 alert and map it to T1003.001.
 
-![Full local_rules.xml with multiple custom rules](Screenshot%202026-02-10%20220445.png)
+![Full local_rules.xml with multiple custom rules](screenshots/Screenshot 2026-02-10 220445.png)
 
 ---
 
@@ -192,11 +192,11 @@ Besides the Exercise 1 credential-dumping (T1003.001), the dashboard showed many
 
 Filtering on **LSASS** (`data.win.eventdata.targetImage` exists) in the Events view surfaced the T1003.001 and T1055 events together, confirming the credential-access detection and related privilege-escalation/defense-evasion alerts.
 
-![MITRE ATT&CK events – Windows-Client1](Screenshot%202026-02-10%20220041.png)
+![MITRE ATT&CK events – Windows-Client1](screenshots/Screenshot 2026-02-10 220041.png)
 
-![MITRE ATT&CK table including T1003.001 and other techniques](Screenshot%202026-02-10%20220253.png)
+![MITRE ATT&CK table including T1003.001 and other techniques](screenshots/Screenshot 2026-02-10 220253.png)
 
-![LSASS filter and T1003.001 / T1055 events](Screenshot%202026-02-10%20220801.png)
+![LSASS filter and T1003.001 / T1055 events](screenshots/Screenshot 2026-02-10 220801.png)
 
 - **What was detected:** The custom rule (100100) and built-in Windows event collection allowed Wazuh to detect the simulated credential-dumping activity (T1003.001) and surface it in the dashboard with correct MITRE mapping. The same 24h window showed a broad mix of tactics (Execution, Discovery, Command and Control, Defense Evasion, Credential Access, Persistence, Privilege Escalation) from both default and custom rules in `local_rules.xml`.
 - **What I’d do next:** Compare with Windows Security/Event Logs (e.g. Event ID 4656 for LSASS access) to confirm alignment and document any gaps (e.g. events that appear in Windows but not in Wazuh, or the other way around).
