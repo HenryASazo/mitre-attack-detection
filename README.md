@@ -102,10 +102,6 @@ sysmon.exe -accepteula -i sysmonconfig.xml
 
 The `sysmonconfig.xml` file defines which events Sysmon logs (process creation, network, file access, etc.); using a config that aligns with MITRE ATT&CK helps ensure Atomic Red Team tests produce detectable activity.
 
-![Wazuh lab environment – MITRE ATT&CK techniques and setting up the lab](screenshots/Screenshot_2026-02-11_wazuh-lab-environment.png)
-
-![Lab guide – Setting up the lab environment and Sysmon configuration](screenshots/Screenshot_2026-02-11_sysmon-install.png)
-
 ---
 
 ### 4. Atomic Red Team (Windows 10 VM)
