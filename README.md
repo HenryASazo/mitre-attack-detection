@@ -1,8 +1,10 @@
-# Lab 1: MITRE ATT&CK Detection
+# Lab: MITRE ATT&CK Detection
 
 A hands-on lab for building and validating detection of MITRE ATT&CK techniques in an EDR-style setup. You get endpoint visibility (Wazuh agent + Sysmon on Windows), a central manager for detection rules, and Atomic Red Team to simulate attacks and confirm that detections fire. The exercise focuses on writing a custom rule to detect credential dumping from LSASS (T1003.001).
 
 **Screenshots throughout this README are from my own lab environment** — captured on my machine as I completed each step (Wazuh manager on Ubuntu, agent on Windows 10 in VirtualBox). They document the setup, configuration, and detection results from this run.
+
+**Note on IPs in screenshots:** Some screenshots show the manager at **10.0.2.15**. That was the Ubuntu VM’s NAT address *before* I added a Host-Only adapter to both VMs. After I set up Host-Only on both so the two VMs could talk to each other, the manager’s IP became **192.168.56.101** and the Windows agent’s **192.168.56.102**. So earlier steps (agent config, install commands) reference 10.0.2.15; later screenshots show the 192.168.56.x addresses.
 
 ---
 
@@ -47,15 +49,11 @@ curl -sO https://packages.wazuh.com/4.14/wazuh-install.sh && sudo bash ./wazuh-i
 
 ![Wazuh manager installation in progress](screenshots/Screenshot%202026-02-08%20170951.png)
 
-![Install summary – dashboard URL and credentials](screenshots/Screenshot%202026-02-08%20171009.png)
-
 - Verified network: `ip a s` showed the NAT interface (e.g. `10.0.2.15`) and later Host-Only gave the IP used for the dashboard (**192.168.56.101**).
 
 ![Network interfaces on Ubuntu (ip a s)](screenshots/Screenshot%202026-02-08%20171523.png)
 
 - Opened the Wazuh dashboard in the browser. First access to the manager IP triggered a certificate warning (self-signed); accepted to continue.
-
-![Browser certificate warning when accessing Wazuh](screenshots/Screenshot%202026-02-08%20171816.png)
 
 - Logged in and confirmed the dashboard loaded with no agents registered yet.
 
@@ -82,8 +80,6 @@ Invoke-WebRequest -Uri https://packages.wazuh.com/4.x/windows/wazuh-agent-4.14.2
 ![PowerShell – download and install Wazuh agent](screenshots/Screenshot%202026-02-08%20174856.png)
 
 - Used the Wazuh service name `WazuhSvc` for checks and restarts (e.g. `Get-Service -Name WazuhSvc`, `Restart-Service -Name WazuhSvc`).
-
-![Wazuh agent management commands (Windows)](screenshots/Screenshot%202026-02-10%20181208.png)
 
 After both adapters were in place and the manager was reachable on the Host-Only network, the agent showed as **Active** in the dashboard with name **Windows-Client1** and IP **192.168.56.102**.
 
@@ -161,8 +157,6 @@ sudo nano /var/ossec/etc/rules/local_rules.xml
 
 ![Custom rule for credential dumping (LSASS) – T1003.001](screenshots/Screenshot%202026-02-10%20215515.png)
 
-![Full local_rules.xml including T1003.001 and other custom rules](screenshots/Screenshot%202026-02-10%20220445.png)
-
 - Reloaded and restarted the manager so the new rule loaded:
 
 ```bash
@@ -225,6 +219,42 @@ Filtering on **LSASS** (`data.win.eventdata.targetImage` exists) in the Events v
 
 - **What was detected:** The custom rule (100100) and built-in Windows event collection allowed Wazuh to detect the simulated credential-dumping activity (T1003.001) and surface it in the dashboard with correct MITRE mapping. The same 24h window showed a broad mix of tactics (Execution, Discovery, Command and Control, Defense Evasion, Credential Access, Persistence, Privilege Escalation) from both default and custom rules in `local_rules.xml`.
 - **What I’d do next:** Compare with Windows Security/Event Logs (e.g. Event ID 4656 for LSASS access) to confirm alignment and document any gaps (e.g. events that appear in Windows but not in Wazuh, or the other way around).
+
+---
+
+## Things I Learned
+
+### EDR (Endpoint Detection and Response)
+
+- **What EDR-style detection looks like in practice:** Endpoint visibility (agent + Sysmon on Windows) feeding a central manager, custom detection rules, and validating that detections fire by running simulated attacks. This lab followed that same workflow — tune rules, run Atomic Red Team, confirm in the dashboard.
+- **Why Sysmon matters for EDR:** Sysmon generates detailed Windows events (process creation, network, file access, etc.). Without it (or a similar data source), many ATT&CK techniques wouldn’t produce events for the SIEM/EDR to detect. The config file (`sysmonconfig.xml`) can be aligned with MITRE ATT&CK so tests produce the right telemetry.
+
+### Wazuh as a SIEM and dashboard
+
+- **Wazuh stack:** Manager (rules + correlation), indexer (storage), and dashboard (web UI). The dashboard is the main place you see agents, alerts, and MITRE ATT&CK coverage.
+- **Dashboard views I used:** **Overview** (alert counts, severity), **Agents / Endpoints** (agent status: Active, IP, name), **MITRE ATT&CK** (techniques and tactics per agent), and **Events** (raw/correlation events with filters). Filtering in Events (e.g. on `data.win.eventdata.targetImage` for LSASS) made it easy to confirm T1003.001 and related alerts.
+- **Agent–manager model:** The Windows machine runs a **Wazuh agent** that collects logs and events and sends them to the **manager**. The manager runs the detection rules and stores/indexes data; the dashboard queries that. Agent status (Active vs disconnected) and correct manager address are critical for seeing any data.
+
+### MITRE ATT&CK
+
+- **Techniques and tactics:** Techniques (e.g. T1003.001 – LSASS credential dumping) sit under tactics (Credential Access, Execution, Discovery, etc.). The Wazuh dashboard surfaces both — you see which techniques fired and which tactics they belong to.
+- **Mapping rules to ATT&CK:** Custom and built-in rules can tag alerts with MITRE technique IDs so the SIEM dashboard can show coverage and help prioritize what’s in scope (e.g. T1003.001, T1055, T1073/T1574).
+
+### Detection rules (Wazuh)
+
+- **Where rules live:** Custom rules go in `local_rules.xml` on the manager (`/var/ossec/etc/rules/local_rules.xml`). After editing, the manager must be restarted (e.g. `systemctl restart wazuh-manager`) so new rules load.
+- **Rule structure:** Rules use XML — rule ID, level (severity), description, and conditions. They can **chain** on other rules via `<if_sid>` (e.g. rule 100100 chains on 61612 for process-access events). Conditions use things like `<field name="win.eventdata.TargetImage">(?i)lsass.exe</field>` (PCRE2). Adding `<mitre>` blocks links the alert to ATT&CK in the dashboard.
+- **Testing rules:** Run an Atomic Red Team test that triggers the technique (e.g. `Invoke-AtomicTest T1003.001`), then check the dashboard to see if the alert fires and shows up under the right technique.
+
+### Atomic Red Team
+
+- **Purpose:** Pre-built tests that simulate ATT&CK techniques (e.g. credential dumping, execution, persistence). You run them on a test endpoint to validate that your detection rules and SIEM/EDR actually see the activity.
+- **Workflow:** Install Atomic Red Team (and Sysmon) on the Windows VM, run a specific test (e.g. T1003.001), then look at the Wazuh dashboard to confirm the corresponding alert and MITRE mapping.
+
+### VM and lab networking
+
+- **Connecting two VMs:** Initially the Ubuntu manager only had NAT (IP 10.0.2.15), and the Windows agent couldn’t reliably reach it. I added a **Host-Only adapter** to both VMs so they’re on the same virtual network. After that, the manager was **192.168.56.101** and the agent **192.168.56.102**, and the agent stayed Active. The IP change in the screenshots (10.0.2.15 vs 192.168.56.x) reflects that — the first IP was before the VMs were properly connected; 192.168.56.x is after.
+- **NAT vs Host-Only:** NAT gives the VMs internet (installs, updates). Host-Only gives a stable, private network between the host and the VMs so the agent can talk to the manager and the host can open the Wazuh dashboard in a browser.
 
 ---
 
