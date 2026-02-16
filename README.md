@@ -1,4 +1,4 @@
-# Lab: MITRE ATT&CK Detection
+# HomeLab: MITRE ATT&CK Detection
 
 A hands-on lab for building and validating detection of MITRE ATT&CK techniques in an EDR-style setup. You get endpoint visibility (Wazuh agent + Sysmon on Windows), a central manager for detection rules, and Atomic Red Team to simulate attacks and confirm that detections fire. The exercise focuses on writing a custom rule to detect credential dumping from LSASS (T1003.001).
 
